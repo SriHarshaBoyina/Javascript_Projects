@@ -1,1 +1,74 @@
+const BASE_URL =
+  "https://latest.currency-api.pages.dev/v1/currencies";
 
+const dropdowns = document.querySelectorAll(".dropdown select");
+const btn = document.querySelector("form button");
+const fromCurr = document.querySelector(".from select");
+const toCurr = document.querySelector(".to select");
+const msg = document.querySelector(".msg");
+
+for (let select of dropdowns) {
+  for (let currCode in countryList) {
+    let newOption = document.createElement("option");
+    newOption.innerText = currCode;
+    newOption.value = currCode;
+    if (select.name === "from" && currCode === "USD") {
+      newOption.selected = true;
+    } else if (select.name === "to" && currCode === "INR") {
+      newOption.selected = true;
+    }
+    select.append(newOption);
+  }
+
+  select.addEventListener("change", (evt) => {
+    updateFlag(evt.target);
+  });
+}
+
+const updateExchangeRate = async () => {
+  let amount = document.querySelector(".amount input");
+  let amtVal = amount.value;
+  if (amtVal === "" || amtVal < 1) {
+    amtVal = 1;
+    amount.value = "1";
+  }
+  // The API returns a single JSON file per base currency, e.g. /currencies/usd.json
+  const URL = `${BASE_URL}/${fromCurr.value.toLowerCase()}.json`;
+  try {
+    let response = await fetch(URL);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  let data = await response.json();
+  const baseKey = fromCurr.value.toLowerCase();
+  const targetKey = toCurr.value.toLowerCase();
+  // API structure is usually: { "date": "...", "<base>": { "<target>": rate, ... } }
+  let ratesObj = data[baseKey];
+  // If the response doesn't have the base key, try to use the root object (best-effort)
+  if (!ratesObj) ratesObj = data;
+  let rate = ratesObj && ratesObj[targetKey];
+  if (rate === undefined) throw new Error(`Rate not available for ${fromCurr.value} -> ${toCurr.value}`);
+
+  let finalAmount = (amtVal * rate).toFixed(4);
+  msg.innerText = `${amtVal} ${fromCurr.value} = ${finalAmount} ${toCurr.value}`;
+  } catch (err) {
+    console.error("Exchange rate error:", err);
+    msg.innerText = "Unable to fetch exchange rate. Try different currencies or check your network.";
+  }
+};
+
+const updateFlag = (element) => {
+  let currCode = element.value;
+  let countryCode = countryList[currCode];
+  // Use the flags API for country flags (countryCode is the two-letter country code)
+  let newSrc = `https://flagsapi.com/${countryCode}/flat/64.png`;
+  let img = element.parentElement.querySelector("img");
+  if (img) img.src = newSrc;
+};
+
+btn.addEventListener("click", (evt) => {
+  evt.preventDefault();
+  updateExchangeRate();
+});
+
+window.addEventListener("load", () => {
+  updateExchangeRate();
+});
